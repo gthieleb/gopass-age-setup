@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install gopass (pinned release binary)
+        run: |
+          set -euo pipefail
+          GOPASS_VERSION="1.15.18"
+          curl -fsSL -o /tmp/gopass.tgz \
+            "https://github.com/gopasspw/gopass/releases/download/v${GOPASS_VERSION}/gopass-${GOPASS_VERSION}-linux-amd64.tar.gz"
+          tar -xzf /tmp/gopass.tgz -C /tmp gopass
+          sudo mv /tmp/gopass /usr/local/bin/gopass
+          gopass version
+
+      - name: Install test dependencies
+        run: python -m pip install --upgrade pip pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=gopass_age_setup --cov-report=term-missing --cov-report=xml
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+
+      - name: Write coverage summary
+        run: |
+          python - <<'PY'
+          import xml.etree.ElementTree as ET
+          rate = float(ET.parse("coverage.xml").getroot().attrib["line-rate"]) * 100
+          with open("coverage-summary.txt", "w") as fh:
+              fh.write(f"{rate:.1f}%\n")
+          PY
+          echo "## Coverage (Python ${{ matrix.python-version }})" >> "$GITHUB_STEP_SUMMARY"
+          echo "**$(cat coverage-summary.txt)** line coverage" >> "$GITHUB_STEP_SUMMARY"

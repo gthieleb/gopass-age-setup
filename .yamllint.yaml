@@ -1,0 +1,11 @@
+# GitOps-taugliche yamllint-Regeln für dieses Repo
+extends: default
+
+rules:
+  line-length:
+    max: 120
+  document-start: disable  # YAML-Dateien ohne führendes "---" sind hier ok
+  truthy:
+    check-keys: false  # erlaubt GitHub Actions "on:"
+  comments:
+    min-spaces-from-content: 1
